@@ -1,2 +1,3 @@
-data_dir: '/Users/akshai/datasets/Truth Seeker/TruthSeeker2023'
-output_dir: '/Users/akshai/workspace/Truthseeker/checkpoints'
+data_file: '/Users/akashpatel/workspace/Truth_Seeker_Model_Dataset.csv'
+output_dir: '/Users/akashpatel/workspace/Truthseeker/checkpoints'
+num_train_data: 2000
