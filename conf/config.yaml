@@ -1,3 +1,4 @@
-data_file: '/Users/akashpatel/workspace/Truth_Seeker_Model_Dataset.csv'
-output_dir: '/Users/akashpatel/workspace/Truthseeker/checkpoints'
+data_file: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truth_Seeker_Model_Dataset.csv'
+output_dir: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truthseeker/checkpoints'
 num_train_data: 2000
+model_type: 'distilbert'

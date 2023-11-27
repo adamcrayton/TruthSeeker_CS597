@@ -7,16 +7,14 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import TensorDataset, random_split
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from transformers import BertForSequenceClassification, AdamW, BertConfig
+from transformers import BertForSequenceClassification,RobertaForSequenceClassification, DistilBertForSequenceClassification, AlbertForSequenceClassification, AdamW, BertConfig
 from transformers import get_linear_schedule_with_warmup
 import numpy as np
     
 import time
 import datetime
 import random
-
-
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -108,13 +106,39 @@ def process_training(cfg : DictConfig):
     
     # Load BertForSequenceClassification, the pretrained BERT model with a single 
     # linear classification layer on top. 
-    model = BertForSequenceClassification.from_pretrained(
-        "bert-base-uncased", # Use the 12-layer BERT model, with an uncased vocab.
-        num_labels = 2, # The number of output labels--2 for binary classification.
-                        # You can increase this for multi-class tasks.   
-        output_attentions = False, # Whether the model returns attentions weights.
-        output_hidden_states = False, # Whether the model returns all hidden-states.
-    )
+        
+    if cfg['model_type'] == 'roberta': 
+        model = RobertaForSequenceClassification.from_pretrained(
+            "cardiffnlp/twitter-roberta-base-emotion",
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = False,
+            ignore_mismatched_sizes=True
+        )
+    elif cfg['model_type'] == 'distilbert':
+        model = DistilBertForSequenceClassification.from_pretrained(
+            "distilbert-base-uncased",
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = False,
+            ignore_mismatched_sizes=True
+        )
+    elif cfg['model_type'] == 'albert':
+        model = AlbertForSequenceClassification.from_pretrained(
+            "textattack/albert-base-v2-imdb",
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = False,
+            ignore_mismatched_sizes=True
+        )
+    else:
+        model = BertForSequenceClassification.from_pretrained(
+            "bert-base-uncased", # Use the 12-layer BERT model, with an uncased vocab.
+            num_labels = 2, # The number of output labels--2 for binary classification.
+                            # You can increase this for multi-class tasks.   
+            output_attentions = False, # Whether the model returns attentions weights.
+            output_hidden_states = False, # Whether the model returns all hidden-states.
+        )
 
     # Tell pytorch to run this model on the GPU.
     #model.cuda()
@@ -192,6 +216,7 @@ def process_training(cfg : DictConfig):
         print('No GPU available, using the CPU instead.')
         device = torch.device("cpu")
     
+    model.to(device)
     seed_val = 42
 
     random.seed(seed_val)
@@ -278,7 +303,7 @@ def process_training(cfg : DictConfig):
             # the loss (because we provided labels) and the "logits"--the model
             # outputs prior to activation.
             output = model(b_input_ids, 
-                                token_type_ids=None, 
+                                #token_type_ids=None, 
                                 attention_mask=b_input_mask, 
                                 labels=b_labels_one_hot)
             loss = output.loss
@@ -343,8 +368,6 @@ def process_training(cfg : DictConfig):
         
         for step, batch in enumerate(validation_dataloader):
             print (f"Executing step {step}")
-            if step > 2000:
-                break
             # Unpack this training batch from our dataloader. 
             #
             # As we unpack the batch, we'll also copy each tensor to the GPU using 
