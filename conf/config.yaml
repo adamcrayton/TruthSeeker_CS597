@@ -6,4 +6,4 @@ model_type: 'bert'
 save_dir: '/home/student/workspace/Truthseeker/Save_dir/${model_type}'
 batch_size: 8
 gt: '2-way-label' # [2-way-label, 4-way-label]
-num_epochs: 'num_epochs'
+num_epochs: 1
