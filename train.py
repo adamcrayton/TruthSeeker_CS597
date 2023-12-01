@@ -11,11 +11,17 @@ from transformers import AdamW
 from transformers import get_linear_schedule_with_warmup
 import numpy as np
 from utils import get_model, get_integer_mapping_for_label
+from torch.utils.data import Subset
     
 import time
 import datetime
 import random
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def split_train_and_test_data(dataset, cfg):
+    train_indices = list(pd.read_csv(cfg['train_csv_path'])['index'].values)
+    test_indices = list(pd.read_csv(cfg['test_csv_path'])['index'].values)
+    return Subset(dataset, train_indices), Subset(dataset, test_indices)
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -29,9 +35,6 @@ def process_training(cfg : DictConfig):
     df = pd.concat([df, gt_df], axis=1)
     df = df[~df['5_label_majority_answer'].isin(['NO MAJORITY'])]
 
-    #Shuffling the dataset
-    df = df.sample(frac=1)
-
     # Load the BERT tokenizer.
     print('Loading BERT tokenizer...')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
@@ -39,17 +42,20 @@ def process_training(cfg : DictConfig):
 
     #Getting the label mapping, mapping the string labels to integer
     label_mapping = get_integer_mapping_for_label(cfg['gt'])
-    #print (label_mapping, df[cfg['gt']], df[cfg['gt']].unique())
     df['ground_truth'] = df[cfg['gt']].apply(lambda x:  label_mapping[x])
+    labels = list(df['ground_truth'].values)
 
-    labels = list(df['ground_truth'].values)[:cfg['num_train_data']]
+    if cfg['num_train_data'] != -1 and (not cfg['manual_data_split']):
+        labels = labels[:cfg['num_train_data']]
+        sentences = sentences[:cfg['num_train_data']]
+        
     input_ids = []
     attention_masks = []
     MAX_SENTENCE_LENGTH = 410
     NUM_CLASSES = 2 if cfg['gt'] == '2-way-label' else 4
 
     # For every sentence...
-    for sent in tqdm(sentences[:cfg['num_train_data']]):
+    for sent in tqdm(sentences):
         # `encode_plus` will:
         #   (1) Tokenize the sentence.
         #   (2) Prepend the `[CLS]` token to the start.
@@ -92,7 +98,10 @@ def process_training(cfg : DictConfig):
     val_size = len(dataset) - train_size
 
     # Divide the dataset by randomly selecting samples.
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    if cfg['manual_data_split']:
+        train_dataset, val_dataset =  split_train_and_test_data(dataset, cfg) #
+    else:
+        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
     print('{:>5,} training samples'.format(train_size))
     print('{:>5,} validation samples'.format(val_size))
