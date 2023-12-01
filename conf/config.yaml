@@ -4,9 +4,9 @@ train_csv_path: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/tra
 test_csv_path: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/test_indices.csv'
 output_dir: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truthseeker/checkpoints'
 num_train_data: 10000
-model_type: 'distilbert' #["roberta", "distilbert", "albert", "bert"]
+model_type: 'bert' #["roberta", "distilbert", "albert", "bert"]
 save_dir: '/home/student/workspace/Truthseeker/Save_dir/${model_type}'
-batch_size: 16
+batch_size: 8
 gt: '2-way-label' # [2-way-label, 4-way-label]
 num_epochs: 4
 manual_data_split: True
