@@ -21,7 +21,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def process_training(cfg : DictConfig):
     cfg = OmegaConf.to_container(cfg, resolve=True)
-    run = wandb.init(project="TruthSeeker", job_type="training", config=cfg)
+    run = wandb.init(project="TruthSeeker", job_type="training", config=cfg, name= cfg['model_type'] + "_" + cfg["gt"])
     df = pd.read_csv(cfg['data_file'])
     gt_df = pd.read_csv(cfg['gt_file'])
 
@@ -155,7 +155,7 @@ def process_training(cfg : DictConfig):
     # Number of training epochs. The BERT authors recommend between 2 and 4. 
     # We chose to run for 4, but we'll see later that this may be over-fitting the
     # training data.
-    epochs = 4
+    epochs = cfg['num_epochs']
 
     # Total number of training steps is [number of batches] x [number of epochs]. 
     # (Note that this is not the same as the number of training samples).
