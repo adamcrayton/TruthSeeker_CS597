@@ -7,9 +7,10 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import TensorDataset, random_split
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from transformers import BertForSequenceClassification,RobertaForSequenceClassification, DistilBertForSequenceClassification, AlbertForSequenceClassification, AdamW, BertConfig
+from transformers import AdamW
 from transformers import get_linear_schedule_with_warmup
 import numpy as np
+from utils import get_model
     
 import time
 import datetime
@@ -26,7 +27,7 @@ def process_training(cfg : DictConfig):
     # Load the BERT tokenizer.
     print('Loading BERT tokenizer...')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-    sentences = 'Statement: ' + df['statement'] + '| Tweet: ' +df['tweet']
+    sentences = 'Statement: ' + df['statement'] + '| Tweet: ' + df['tweet']
     labels = list(df["BinaryNumTarget"].values)[:cfg['num_train_data']]
     input_ids = []
     attention_masks = []
@@ -56,8 +57,6 @@ def process_training(cfg : DictConfig):
         # And its attention mask (simply differentiates padding from non-padding).
         attention_masks.append(encoded_dict['attention_mask'])
 
-    
-    index = 15
     # Print sentence 0, now as a list of IDs.
     # print('Original: ', sentences[index])
     # print('Token IDs:', input_ids[index])
@@ -107,38 +106,7 @@ def process_training(cfg : DictConfig):
     # Load BertForSequenceClassification, the pretrained BERT model with a single 
     # linear classification layer on top. 
         
-    if cfg['model_type'] == 'roberta': 
-        model = RobertaForSequenceClassification.from_pretrained(
-            "cardiffnlp/twitter-roberta-base-emotion",
-            num_labels = 2,
-            output_attentions = False,
-            output_hidden_states = False,
-            ignore_mismatched_sizes=True
-        )
-    elif cfg['model_type'] == 'distilbert':
-        model = DistilBertForSequenceClassification.from_pretrained(
-            "distilbert-base-uncased",
-            num_labels = 2,
-            output_attentions = False,
-            output_hidden_states = False,
-            ignore_mismatched_sizes=True
-        )
-    elif cfg['model_type'] == 'albert':
-        model = AlbertForSequenceClassification.from_pretrained(
-            "textattack/albert-base-v2-imdb",
-            num_labels = 2,
-            output_attentions = False,
-            output_hidden_states = False,
-            ignore_mismatched_sizes=True
-        )
-    else:
-        model = BertForSequenceClassification.from_pretrained(
-            "bert-base-uncased", # Use the 12-layer BERT model, with an uncased vocab.
-            num_labels = 2, # The number of output labels--2 for binary classification.
-                            # You can increase this for multi-class tasks.   
-            output_attentions = False, # Whether the model returns attentions weights.
-            output_hidden_states = False, # Whether the model returns all hidden-states.
-        )
+    model = get_model(cfg['model_name'])
 
     # Tell pytorch to run this model on the GPU.
     #model.cuda()
@@ -201,6 +169,16 @@ def process_training(cfg : DictConfig):
         # Format as hh:mm:ss
         return str(datetime.timedelta(seconds=elapsed_rounded))
     
+    def status_bar(list_time):
+        # Create an iterable to loop over
+        my_list = list(range(list_time))
+
+        # Wrap the iterable with tqdm to add a progress bar
+        for i in tqdm(my_list, desc="Processing", total=len(my_list)):
+
+        # Simulate some processing time
+            time.sleep(0.1)
+    
     # If there's a GPU available...
     if torch.cuda.is_available():    
 
@@ -249,7 +227,7 @@ def process_training(cfg : DictConfig):
 
         # Reset the total loss for this epoch.
         total_train_loss = 0
-
+         
         # Put the model into training mode. Don't be mislead--the call to 
         # `train` just changes the *mode*, it doesn't *perform* the training.
         # `dropout` and `batchnorm` layers behave differently during training
@@ -258,16 +236,18 @@ def process_training(cfg : DictConfig):
         train_loss = 0
         total_fake_examples = 0
         total_true_examples = 0
+        
+        #status bar
+        #list_time = 100
+        #status_bar(list_time)
+
         # For each batch of training data...
         for step, batch in enumerate(train_dataloader):
-            if step > 2000:
-                break
-            print (f"Executing step {step}")
+
             # Progress update every 40 batches.
             if step % 40 == 0 and not step == 0:
                 # Calculate elapsed time in minutes.
                 elapsed = format_time(time.time() - t0)
-                
                 # Report progress.
                 print('  Batch {:>5,}  of  {:>5,}.    Elapsed: {:}. Training loss. {:} Num fake examples {:} Num true examples {:}'.format(step, len(train_dataloader), elapsed, train_loss,total_fake_examples, total_true_examples ))
 
@@ -367,7 +347,6 @@ def process_training(cfg : DictConfig):
         # Evaluate data for one epoch
         
         for step, batch in enumerate(validation_dataloader):
-            print (f"Executing step {step}")
             # Unpack this training batch from our dataloader. 
             #
             # As we unpack the batch, we'll also copy each tensor to the GPU using 
@@ -394,8 +373,7 @@ def process_training(cfg : DictConfig):
                 # Get the "logits" output by the model. The "logits" are the output
                 # values prior to applying an activation function like the softmax.
                 
-                output = model(b_input_ids, 
-                                    token_type_ids=None, 
+                output = model(b_input_ids,  
                                     attention_mask=b_input_mask,
                                     labels=b_labels_one_hot)
                 loss = output.loss
@@ -440,7 +418,7 @@ def process_training(cfg : DictConfig):
             }
         )
         #Save model checkpoint
-        model.save_pretrained(SAVE_DIR)
+        model.save_pretrained(cfg['save_dir'])
 
     print("")
     print("Training complete!")

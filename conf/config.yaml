@@ -2,3 +2,4 @@ data_file: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truth_Se
 output_dir: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truthseeker/checkpoints'
 num_train_data: 2000
 model_type: 'distilbert'
+save_dir: '/home/student/workspace/Truthseeker/Save_dir'
