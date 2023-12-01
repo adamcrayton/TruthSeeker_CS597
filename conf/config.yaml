@@ -1,5 +1,8 @@
 data_file: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truth_Seeker_Model_Dataset.csv'
+gt_file: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truthfulness.csv'
 output_dir: '/home/student/workspace/Truthseeker/dataset/TruthSeeker2023/Truthseeker/checkpoints'
 num_train_data: 2000
 model_type: 'distilbert'
-save_dir: '/home/student/workspace/Truthseeker/Save_dir'
+save_dir: '/home/student/workspace/Truthseeker/Save_dir/${model_type}'
+batch_size: 16
+gt: '2-way-label' # [2-way-label, 4-way-label]

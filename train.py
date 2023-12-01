@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from transformers import AdamW
 from transformers import get_linear_schedule_with_warmup
 import numpy as np
-from utils import get_model
+from utils import get_model, get_integer_mapping_for_label
     
 import time
 import datetime
@@ -20,18 +20,33 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def process_training(cfg : DictConfig):
-    run = wandb.init(project="TruthSeeker", job_type="training")
+    cfg = OmegaConf.to_container(cfg, resolve=True)
+    run = wandb.init(project="TruthSeeker", job_type="training", config=cfg)
     df = pd.read_csv(cfg['data_file'])
+    gt_df = pd.read_csv(cfg['gt_file'])
+
+    #Concatenation and filtering
+    df = pd.concat([df, gt_df], axis=1)
+    df = df[~df['5_label_majority_answer'].isin(['NO MAJORITY'])]
+
+    #Shuffling the dataset
     df = df.sample(frac=1)
 
     # Load the BERT tokenizer.
     print('Loading BERT tokenizer...')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
     sentences = 'Statement: ' + df['statement'] + '| Tweet: ' + df['tweet']
-    labels = list(df["BinaryNumTarget"].values)[:cfg['num_train_data']]
+
+    #Getting the label mapping, mapping the string labels to integer
+    label_mapping = get_integer_mapping_for_label(cfg['gt'])
+    #print (label_mapping, df[cfg['gt']], df[cfg['gt']].unique())
+    df['ground_truth'] = df[cfg['gt']].apply(lambda x:  label_mapping[x])
+
+    labels = list(df['ground_truth'].values)[:cfg['num_train_data']]
     input_ids = []
     attention_masks = []
     MAX_SENTENCE_LENGTH = 410
+    NUM_CLASSES = 2 if cfg['gt'] == '2-way-label' else 4
 
     # For every sentence...
     for sent in tqdm(sentences[:cfg['num_train_data']]):
@@ -86,7 +101,7 @@ def process_training(cfg : DictConfig):
     # The DataLoader needs to know our batch size for training, so we specify it 
     # here. For fine-tuning BERT on a specific task, the authors recommend a batch 
     # size of 16 or 32.
-    batch_size = 2
+    batch_size = cfg['batch_size']
 
     # Create the DataLoaders for our training and validation sets.
     # We'll take training samples in random order. 
@@ -106,7 +121,7 @@ def process_training(cfg : DictConfig):
     # Load BertForSequenceClassification, the pretrained BERT model with a single 
     # linear classification layer on top. 
         
-    model = get_model(cfg['model_name'])
+    model = get_model(cfg['model_type'], num_classes=NUM_CLASSES)
 
     # Tell pytorch to run this model on the GPU.
     #model.cuda()
@@ -242,14 +257,14 @@ def process_training(cfg : DictConfig):
         #status_bar(list_time)
 
         # For each batch of training data...
-        for step, batch in enumerate(train_dataloader):
+        for step, batch in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
 
             # Progress update every 40 batches.
             if step % 40 == 0 and not step == 0:
                 # Calculate elapsed time in minutes.
                 elapsed = format_time(time.time() - t0)
                 # Report progress.
-                print('  Batch {:>5,}  of  {:>5,}.    Elapsed: {:}. Training loss. {:} Num fake examples {:} Num true examples {:}'.format(step, len(train_dataloader), elapsed, train_loss,total_fake_examples, total_true_examples ))
+                #print('  Batch {:>5,}  of  {:>5,}.    Elapsed: {:}. Training loss. {:} Num fake examples {:} Num true examples {:}'.format(step, len(train_dataloader), elapsed, train_loss,total_fake_examples, total_true_examples ))
 
             # Unpack this training batch from our dataloader. 
             #
@@ -266,7 +281,7 @@ def process_training(cfg : DictConfig):
             total_fake_examples += (b_labels == 1).sum().item()
             total_true_examples += (b_labels == 0).sum().item()
             #print (f"{b_labels.shape=}")
-            b_labels_one_hot = torch.nn.functional.one_hot(b_labels, num_classes=2).float()
+            b_labels_one_hot = torch.nn.functional.one_hot(b_labels, num_classes=NUM_CLASSES).float()
             #print (b_input_ids.shape, b_labels.shape, b_input_mask.shape, b_labels_one_hot.shape, b_labels_one_hot.dtype)
 
             # Always clear any previously calculated gradients before performing a
@@ -345,8 +360,7 @@ def process_training(cfg : DictConfig):
         nb_eval_steps = 0
 
         # Evaluate data for one epoch
-        
-        for step, batch in enumerate(validation_dataloader):
+        for step, batch in tqdm(enumerate(validation_dataloader), total=len(validation_dataloader)):
             # Unpack this training batch from our dataloader. 
             #
             # As we unpack the batch, we'll also copy each tensor to the GPU using 
@@ -359,7 +373,7 @@ def process_training(cfg : DictConfig):
             b_input_ids = batch[0].to(device)
             b_input_mask = batch[1].to(device)
             b_labels = batch[2].to(torch.int64).to(device)
-            b_labels_one_hot = torch.nn.functional.one_hot(b_labels, num_classes=2).float()
+            b_labels_one_hot = torch.nn.functional.one_hot(b_labels, num_classes=NUM_CLASSES).float()
             
             # Tell pytorch not to bother with constructing the compute graph during
             # the forward pass, since this is only needed for backprop (training).
@@ -407,16 +421,14 @@ def process_training(cfg : DictConfig):
         print("  Validation took: {:}".format(validation_time))
 
         # Record all statistics from this epoch.
-        training_stats.append(
-            {
+        stats =  {
                 'epoch': epoch_i + 1,
-                'Training Loss': avg_train_loss,
-                'Valid. Loss': avg_val_loss,
-                'Valid. Accur.': avg_val_accuracy,
-                'Training Time': training_time,
-                'Validation Time': validation_time
-            }
-        )
+                'training_loss': avg_train_loss,
+                'validation_loss': avg_val_loss,
+                'validation_accuracy': avg_val_accuracy
+        }
+        wandb.log(stats)
+        training_stats.append(stats)
         #Save model checkpoint
         model.save_pretrained(cfg['save_dir'])
 
