@@ -5,10 +5,11 @@ test_csv_path: '/Users/akashpatel/workspace/Truthseeker/dataset/TruthSeeker2023/
 output_dir: '/Users/akashpatel/workspace/Truthseeker/dataset/TruthSeeker2023/Truthseeker/checkpoints'
 num_train_data: 10000
 model_type: 'distilbert' #["roberta", "distilbert", "albert", "bert"]
-train_test_choose: 'test' #["train","test"]
+train_test_choose: '/Users/akashpatel/workspace/Truthseeker/test_indices.csv' #["train","test"]
 save_dir: '/Users/akashpatel/workspace/Truthseeker/Save_dir/${model_type}'
 batch_size: 8
 gt: '2-way-label' # [2-way-label, 4-way-label]
 num_epochs: 4
 manual_data_split: True
 prediction_csv: /Users/akashpatel/workspace/Truthseeker/Prediction_csv/${model_type}_prediction.csv
+modelname: ${model_type}ForSequenceClassification
