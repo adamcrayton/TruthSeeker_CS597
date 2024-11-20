@@ -1,5 +1,5 @@
 # Truthseeker
 
-This is a project done by Akash and Akshai.
+This is a project done by Adam Crayton and Jeremiah Robinson.
 
-TODO: Need to implement code
+Paper is attached here: 
